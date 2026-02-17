@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     telegram_bot_token: str = ""
     telegram_chat_ids: list[str] = []
 
+    @field_validator("monitor_interval")
+    @classmethod
+    def _validate_monitor_interval(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("monitor_interval must be positive")
+        return v
+
     @field_validator("telegram_chat_ids", "loki_extra_queries", "prometheus_extra_queries", mode="before")
     @classmethod
     def _parse_comma_separated(cls, v: Any) -> list[str]:

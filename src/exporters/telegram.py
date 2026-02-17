@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+import html
 
 import httpx
 import structlog
@@ -10,15 +11,29 @@ logger = structlog.get_logger()
 
 TG_API = "https://api.telegram.org/bot{token}"
 TG_MAX_MESSAGE_LENGTH = 4096
+TRUNCATION_MARKER = "\n... (truncated)"
+
+
+def _truncate_html(text: str, max_length: int) -> str:
+    if len(text) <= max_length:
+        return text
+    truncated = text[:max_length]
+    amp_index = truncated.rfind("&")
+    if amp_index != -1 and ";" not in truncated[amp_index:]:
+        truncated = truncated[:amp_index]
+    return truncated
 
 
 def _format_message(report: str) -> str:
     ts = datetime.now(UTC).strftime("%H:%M %d.%m.%Y")
     header = f"<b>Agent Monitoring Report</b> ({ts})\n\n"
-    max_body = TG_MAX_MESSAGE_LENGTH - len(header) - 20
-    body = report[:max_body]
-    if len(report) > max_body:
-        body += "\n... (truncated)"
+    escaped_report = html.escape(report, quote=False)
+    max_body = TG_MAX_MESSAGE_LENGTH - len(header)
+    if len(escaped_report) > max_body:
+        max_body = max(0, max_body - len(TRUNCATION_MARKER))
+        body = _truncate_html(escaped_report, max_body) + TRUNCATION_MARKER
+    else:
+        body = escaped_report
     return header + body
 
 

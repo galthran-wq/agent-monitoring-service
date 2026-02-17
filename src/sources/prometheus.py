@@ -22,7 +22,14 @@ class PrometheusSource(BaseSource):
         return settings.prometheus_enabled and bool(settings.prometheus_url)
 
     async def fetch(self, lookback_seconds: int) -> SourceData:
-        queries = [*BUILTIN_QUERIES]
+        lookback = f"{lookback_seconds}s"
+        queries: list[tuple[str, str]] = []
+        for label, query in BUILTIN_QUERIES:
+            if "[5m]" in query:
+                query = query.replace("[5m]", f"[{lookback}]")
+            if "5m" in label:
+                label = label.replace("5m", lookback)
+            queries.append((label, query))
         for extra in settings.prometheus_extra_queries:
             queries.append((extra, extra))
 
