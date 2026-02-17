@@ -1,5 +1,5 @@
-from datetime import UTC, datetime
 import html
+from datetime import UTC, datetime
 
 import httpx
 import structlog
