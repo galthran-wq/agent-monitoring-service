@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -9,6 +11,9 @@ from src.api.router import router
 from src.config import settings
 from src.core.exceptions import register_exception_handlers
 from src.core.middleware import register_middleware
+from src.exporters import get_configured_exporters
+from src.services.monitor import AgentMonitor
+from src.sources import get_configured_sources
 
 logger = structlog.get_logger()
 
@@ -34,7 +39,24 @@ def configure_logging() -> None:
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
     logger.info("startup", app_name=settings.app_name)
+
+    sources = get_configured_sources()
+    exporters = get_configured_exporters()
+    logger.info(
+        "monitor_starting",
+        sources=[s.name for s in sources],
+        exporters=[e.name for e in exporters],
+    )
+
+    monitor = AgentMonitor(sources=sources, exporters=exporters)
+    app.state.monitor = monitor
+    monitor_task = asyncio.create_task(monitor.run())
+
     yield
+
+    monitor_task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await monitor_task
     logger.info("shutdown", app_name=settings.app_name)
 
 
