@@ -50,7 +50,7 @@ class Settings(BaseSettings):
     def _parse_comma_separated(cls, v: Any) -> list[str]:
         if isinstance(v, str):
             return [x.strip() for x in v.split(",") if x.strip()]
-        return v
+        return list(v)
 
 
 settings = Settings()

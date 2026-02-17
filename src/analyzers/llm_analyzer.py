@@ -96,7 +96,8 @@ async def analyze(source_data: list[SourceData]) -> str:
             )
             resp.raise_for_status()
             data = resp.json()
-            return data["choices"][0]["message"]["content"]
+            content: str = data["choices"][0]["message"]["content"]
+            return content
     except Exception as e:
         logger.error("llm_analysis_error", error=str(e))
         return _build_fallback_report(source_data)

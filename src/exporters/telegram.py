@@ -56,7 +56,7 @@ class TelegramExporter(BaseExporter):
                         "parse_mode": "HTML",
                     },
                 )
-                data: dict = {}
+                data: dict[str, object] = {}
                 try:
                     data = resp.json()
                 except Exception:
@@ -79,8 +79,12 @@ class TelegramExporter(BaseExporter):
                 },
             )
             resp.raise_for_status()
-            data = resp.json()
-            if data.get("ok"):
-                self._message_ids[chat_id] = data["result"]["message_id"]
+            send_data: dict[str, object] = resp.json()
+            if send_data.get("ok"):
+                result = send_data["result"]
+                assert isinstance(result, dict)
+                msg_id = result["message_id"]
+                assert isinstance(msg_id, int)
+                self._message_ids[chat_id] = msg_id
         except Exception as e:
             logger.warning("telegram_send_error", chat_id=chat_id, error=str(e))
