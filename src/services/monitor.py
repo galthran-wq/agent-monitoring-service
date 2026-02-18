@@ -21,6 +21,7 @@ class AgentMonitor:
         self._exporters = exporters
         self._last_report: str | None = None
         self._last_report_at: datetime | None = None
+        self._running = False
 
     @property
     def last_report(self) -> str | None:
@@ -29,6 +30,10 @@ class AgentMonitor:
     @property
     def last_report_at(self) -> datetime | None:
         return self._last_report_at
+
+    @property
+    def running(self) -> bool:
+        return self._running
 
     async def _fetch_all(self) -> list[SourceData]:
         tasks = {s.name: s.fetch(settings.lookback_period) for s in self._sources}
@@ -54,12 +59,16 @@ class AgentMonitor:
                 logger.error("exporter_error", exporter=exporter.name, error=str(e))
 
     async def tick(self) -> None:
-        source_data = await self._fetch_all()
-        report = await self._analyze(source_data)
-        self._last_report = report
-        self._last_report_at = datetime.now(UTC)
-        await self._export_all(report)
-        logger.info("monitor_tick_complete", sources=[s.source_name for s in source_data])
+        self._running = True
+        try:
+            source_data = await self._fetch_all()
+            report = await self._analyze(source_data)
+            self._last_report = report
+            self._last_report_at = datetime.now(UTC)
+            await self._export_all(report)
+            logger.info("monitor_tick_complete", sources=[s.source_name for s in source_data])
+        finally:
+            self._running = False
 
     async def run(self) -> None:
         while True:
