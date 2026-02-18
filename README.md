@@ -50,6 +50,18 @@ All env vars use the `AGENT_MONITORING_` prefix.
 | `AGENT_MONITORING_TELEGRAM_BOT_TOKEN` | `""` | Telegram bot token |
 | `AGENT_MONITORING_TELEGRAM_CHAT_IDS` | `""` | Comma-separated chat IDs |
 
+### LangSmith Tracing (optional)
+
+Set standard LangSmith env vars to enable tracing of LLM calls:
+
+```bash
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=ls-...
+LANGCHAIN_PROJECT=agent-monitoring    # optional, defaults to "default"
+```
+
+When `LANGCHAIN_TRACING_V2=true`, the OpenAI client is wrapped with `langsmith.wrappers.wrap_openai` so all LLM calls appear in your LangSmith dashboard. No effect when unset.
+
 ## API Endpoints
 
 | Method | Path | Description |

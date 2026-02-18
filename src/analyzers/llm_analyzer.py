@@ -1,8 +1,15 @@
-import httpx
+from __future__ import annotations
+
+import os
+from typing import TYPE_CHECKING
+
 import structlog
+from openai import AsyncOpenAI
 
 from src.config import settings
-from src.sources.base import SourceData
+
+if TYPE_CHECKING:
+    from src.sources.base import SourceData
 
 logger = structlog.get_logger()
 
@@ -70,6 +77,25 @@ def _build_fallback_report(source_data: list[SourceData]) -> str:
     return "\n".join(lines)
 
 
+def _build_client() -> AsyncOpenAI:
+    client = AsyncOpenAI(
+        api_key=settings.llm_api_key,
+        base_url=settings.llm_base_url,
+        timeout=60.0,
+    )
+
+    if os.getenv("LANGCHAIN_TRACING_V2", "").lower() == "true":
+        try:
+            from langsmith.wrappers import wrap_openai
+
+            client = wrap_openai(client)
+            logger.info("langsmith_tracing_enabled")
+        except ImportError:
+            logger.warning("langsmith_package_not_installed")
+
+    return client
+
+
 async def analyze(source_data: list[SourceData]) -> str:
     if not settings.llm_api_key:
         logger.info("llm_api_key_not_set", msg="Using fallback summary")
@@ -78,26 +104,17 @@ async def analyze(source_data: list[SourceData]) -> str:
     user_content = _truncate_to_budget(source_data, settings.llm_max_input_tokens)
 
     try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{settings.llm_base_url}/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {settings.llm_api_key}",
-                    "Content-Type": "application/json",
-                },
-                json={
-                    "model": settings.llm_model,
-                    "max_tokens": settings.llm_max_output_tokens,
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            content: str = data["choices"][0]["message"]["content"]
-            return content
+        client = _build_client()
+        response = await client.chat.completions.create(
+            model=settings.llm_model,
+            max_tokens=settings.llm_max_output_tokens,
+            messages=[
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+        )
+        content = response.choices[0].message.content or ""
+        return content
     except Exception as e:
         logger.error("llm_analysis_error", error=str(e))
         return _build_fallback_report(source_data)
