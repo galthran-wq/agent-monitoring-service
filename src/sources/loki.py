@@ -25,6 +25,8 @@ class LokiSource(BaseSource):
         queries = [
             '{level=~"error|ERROR|fatal|FATAL"}',
             '{level=~"warning|WARNING"}',
+            '{detected_level=~"error|ERROR|fatal|FATAL"}',
+            '{detected_level=~"warning|WARNING"}',
             *settings.loki_extra_queries,
         ]
 
