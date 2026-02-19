@@ -1,4 +1,5 @@
 import html
+import re
 from datetime import UTC, datetime
 
 import httpx
@@ -24,10 +25,19 @@ def _truncate_html(text: str, max_length: int) -> str:
     return truncated
 
 
+def _md_to_html(text: str) -> str:
+    """Convert basic Markdown formatting to Telegram HTML after html.escape()."""
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    text = re.sub(r"__(.+?)__", r"<b>\1</b>", text)
+    text = re.sub(r"(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)", r"<i>\1</i>", text)
+    text = re.sub(r"`(.+?)`", r"<code>\1</code>", text)
+    return text
+
+
 def _format_message(report: str) -> str:
     ts = datetime.now(UTC).strftime("%H:%M %d.%m.%Y")
     header = f"<b>Agent Monitoring Report</b> ({ts})\n\n"
-    escaped_report = html.escape(report, quote=False)
+    escaped_report = _md_to_html(html.escape(report, quote=False))
     max_body = TG_MAX_MESSAGE_LENGTH - len(header)
     if len(escaped_report) > max_body:
         max_body = max(0, max_body - len(TRUNCATION_MARKER))
