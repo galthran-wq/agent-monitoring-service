@@ -4,7 +4,7 @@ from src.sources.loki import LokiSource
 
 
 async def test_loki_fetch_parses_streams():
-    loki_response = {
+    error_response = {
         "status": "success",
         "data": {
             "resultType": "streams",
@@ -19,11 +19,21 @@ async def test_loki_fetch_parses_streams():
             ],
         },
     }
+    empty_response = {"status": "success", "data": {"resultType": "streams", "result": []}}
 
     source = LokiSource()
 
+    call_count = 0
+
+    def _route_handler(request):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return Response(200, json=error_response)
+        return Response(200, json=empty_response)
+
     with respx.mock:
-        respx.get("http://loki:3100/loki/api/v1/query_range").mock(return_value=Response(200, json=loki_response))
+        respx.get("http://loki:3100/loki/api/v1/query_range").mock(side_effect=_route_handler)
 
         result = await source.fetch(lookback_seconds=3600)
 
