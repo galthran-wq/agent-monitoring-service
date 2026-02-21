@@ -1,35 +1,12 @@
 import respx
 from httpx import Response
-
-from src.exporters.telegram import TG_MAX_MESSAGE_LENGTH, TelegramExporter, _format_messages, _md_to_html
-
-
-def test_md_to_html_bold():
-    assert _md_to_html("**hello**") == "<b>hello</b>"
-    assert _md_to_html("__hello__") == "<b>hello</b>"
+from src.exporters.telegram import TG_MAX_MESSAGE_LENGTH, TelegramExporter, _format_messages
 
 
-def test_md_to_html_italic():
-    assert _md_to_html("*hello*") == "<i>hello</i>"
-
-
-def test_md_to_html_code():
-    assert _md_to_html("`code`") == "<code>code</code>"
-
-
-def test_md_to_html_mixed():
-    text = "**Overall Status**: 🟢 Healthy\n**Errors**: `none`"
-    result = _md_to_html(text)
-    assert "<b>Overall Status</b>" in result
-    assert "<b>Errors</b>" in result
-    assert "<code>none</code>" in result
-
-
-def test_format_messages_converts_markdown():
-    msgs = _format_messages("**Service Health**: all ok")
+def test_format_messages_passes_html_through():
+    msgs = _format_messages("<b>Service Health</b>: all ok")
     assert len(msgs) == 1
     assert "<b>Service Health</b>" in msgs[0]
-    assert "**" not in msgs[0]
 
 
 def test_format_messages_splits_long_report():
@@ -71,13 +48,30 @@ async def test_telegram_export_sends_message(monkeypatch):
     exporter = TelegramExporter()
 
     with respx.mock:
-        respx.post("https://api.telegram.org/bottest-token/sendMessage").mock(
+        route = respx.post("https://api.telegram.org/bottest-token/sendMessage").mock(
             return_value=Response(200, json={"ok": True, "result": {"message_id": 42}})
         )
 
         await exporter.export("Test report")
 
-    assert exporter._message_ids.get("123") == [42]
+    assert route.call_count == 1
+
+
+async def test_telegram_export_sends_new_messages_each_time(monkeypatch):
+    monkeypatch.setattr("src.exporters.telegram.settings.telegram_bot_token", "test-token")
+    monkeypatch.setattr("src.exporters.telegram.settings.telegram_chat_ids", ["123"])
+
+    exporter = TelegramExporter()
+
+    with respx.mock:
+        route = respx.post("https://api.telegram.org/bottest-token/sendMessage").mock(
+            return_value=Response(200, json={"ok": True, "result": {"message_id": 42}})
+        )
+
+        await exporter.export("First report")
+        await exporter.export("Second report")
+
+    assert route.call_count == 2
 
 
 async def test_telegram_export_sends_multiple_messages_for_long_report(monkeypatch):
@@ -99,45 +93,7 @@ async def test_telegram_export_sends_multiple_messages_for_long_report(monkeypat
 
         await exporter.export("x" * 10000)
 
-    assert len(exporter._message_ids["123"]) >= 2
     assert call_count >= 2
-
-
-async def test_telegram_export_edits_existing_message(monkeypatch):
-    monkeypatch.setattr("src.exporters.telegram.settings.telegram_bot_token", "test-token")
-    monkeypatch.setattr("src.exporters.telegram.settings.telegram_chat_ids", ["123"])
-
-    exporter = TelegramExporter()
-    exporter._message_ids["123"] = [42]
-
-    with respx.mock:
-        respx.post("https://api.telegram.org/bottest-token/editMessageText").mock(
-            return_value=Response(200, json={"ok": True, "result": {"message_id": 42}})
-        )
-
-        await exporter.export("Updated report")
-
-    assert exporter._message_ids["123"] == [42]
-
-
-async def test_telegram_export_falls_back_to_send_on_edit_failure(monkeypatch):
-    monkeypatch.setattr("src.exporters.telegram.settings.telegram_bot_token", "test-token")
-    monkeypatch.setattr("src.exporters.telegram.settings.telegram_chat_ids", ["123"])
-
-    exporter = TelegramExporter()
-    exporter._message_ids["123"] = [42]
-
-    with respx.mock:
-        respx.post("https://api.telegram.org/bottest-token/editMessageText").mock(
-            return_value=Response(400, json={"ok": False, "description": "Bad Request: message not found"})
-        )
-        respx.post("https://api.telegram.org/bottest-token/sendMessage").mock(
-            return_value=Response(200, json={"ok": True, "result": {"message_id": 99}})
-        )
-
-        await exporter.export("Fallback report")
-
-    assert exporter._message_ids["123"] == [99]
 
 
 async def test_telegram_not_configured(monkeypatch):

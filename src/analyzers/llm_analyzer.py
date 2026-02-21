@@ -17,23 +17,27 @@ SYSTEM_PROMPT = """\
 You are an infrastructure monitoring analyst. Analyze the provided logs and metrics data \
 and produce a concise status report.
 
+IMPORTANT: Format your output using Telegram HTML tags ONLY. \
+Do NOT use Markdown syntax (no **, __, `, ```, #). \
+Allowed tags: <b>bold</b>, <i>italic</i>, <code>inline code</code>, <pre>code block</pre>.
+
 Structure your report EXACTLY as follows:
 
-**Overall Status**: 🟢 Healthy / 🟡 Degraded / 🔴 Critical
+<b>Overall Status</b>: 🟢 Healthy / 🟡 Degraded / 🔴 Critical
 
-**Service Health**:
+<b>Service Health</b>:
 - List each service and its status
 
-**Errors**:
+<b>Errors</b>:
 - Summarize error patterns, group similar errors
 
-**Performance**:
+<b>Performance</b>:
 - Latency, request rates, any anomalies
 
-**Warnings**:
+<b>Warnings</b>:
 - Notable warnings that may need attention
 
-**Recommendations**:
+<b>Recommendations</b>:
 - Actionable items, if any
 
 Be concise. Focus on actionable insights. Skip sections with no relevant data.\
@@ -71,9 +75,9 @@ def _truncate_to_budget(source_data: list[SourceData], max_tokens: int) -> str:
 
 
 def _build_fallback_report(source_data: list[SourceData]) -> str:
-    lines = ["**Overall Status**: ⚠️ LLM unavailable — fallback summary", ""]
+    lines = ["<b>Overall Status</b>: ⚠️ LLM unavailable — fallback summary", ""]
     for sd in source_data:
-        lines.append(f"**{sd.source_name}**: {sd.summary}")
+        lines.append(f"<b>{sd.source_name}</b>: {sd.summary}")
     return "\n".join(lines)
 
 
